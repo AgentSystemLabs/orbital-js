@@ -1,0 +1,68 @@
+{
+  "name": "@parabolajs/parabola",
+  "version": "0.1.0",
+  "description": "Tiny realtime SSR + WebSocket framework for Bun and Hono.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "bun": "./src/index.ts",
+      "import": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./parabola.js": {
+      "default": "./src/parabola.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "src/index.ts",
+    "src/server.tsx",
+    "src/bus.ts",
+    "src/dispatcher.ts",
+    "src/renderer.ts",
+    "src/log.ts",
+    "src/parabola.js",
+    "src/client-morph.js",
+    "tsconfig.json",
+    "README.md",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "build": "bun build ./src/index.ts --outdir ./dist --target bun --external hono --external ioredis && cp ./src/parabola.js ./dist/parabola.js && cp ./src/client-morph.js ./dist/client-morph.js",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "bun test"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "linkedom": "^0.18.12",
+    "tailwindcss": "^3.4.6",
+    "typescript": "^5.0.0"
+  },
+  "peerDependencies": {
+    "ioredis": "^5.0.0",
+    "typescript": "^5.0.0"
+  },
+  "peerDependenciesMeta": {
+    "ioredis": {
+      "optional": true
+    },
+    "typescript": {
+      "optional": true
+    }
+  },
+  "dependencies": {
+    "hono": "^4.5.0"
+  },
+  "keywords": [
+    "bun",
+    "hono",
+    "websocket",
+    "realtime",
+    "ssr",
+    "morphdom"
+  ]
+}
