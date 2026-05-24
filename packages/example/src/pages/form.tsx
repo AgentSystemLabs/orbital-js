@@ -1,4 +1,4 @@
-import type { Parabola } from "@parabolajs/parabola";
+import type { Station } from "@orbital-js/station";
 import type { AppCtx } from "../index";
 
 type Submission = { name: string; email: string; age: number; ts: number };
@@ -6,8 +6,8 @@ type Submission = { name: string; email: string; age: number; ts: number };
 const MAX = 20;
 const submissions: Submission[] = [];
 
-export function registerForm(parabola: Parabola<AppCtx>) {
-  parabola.template("form", () => {
+export function registerForm(station: Station<AppCtx>) {
+  station.template("form", () => {
     return (
       <div class="py-12 space-y-6">
         <h1 class="text-2xl font-bold">Form Validation</h1>
@@ -84,7 +84,7 @@ export function registerForm(parabola: Parabola<AppCtx>) {
     );
   });
 
-  parabola.template("form:submissions", () => {
+  station.template("form:submissions", () => {
     if (submissions.length === 0) {
       return <div class="opacity-60">No submissions yet.</div>;
     }
@@ -109,7 +109,7 @@ export function registerForm(parabola: Parabola<AppCtx>) {
     );
   });
 
-  parabola.action("form:submit", async ({ broadcast, data }) => {
+  station.action("form:submit", async ({ broadcast, data }) => {
     const d = (data ?? {}) as Record<string, unknown>;
     const name = String(d.name ?? "").trim();
     const email = String(d.email ?? "").trim();

@@ -53,7 +53,7 @@ export class ControlBus<Ctx = unknown> {
   on<Data = any>(key: string, def: ActionHandler<Ctx, Data> | ActionDefinition<Ctx, Data>): void {
     if (this.actions.has(key)) {
       throw new Error(
-        `parabola: action "${key}" is already registered. Use a different key, or call off(key) first.`
+        `station: action "${key}" is already registered. Use a different key, or call off(key) first.`
       );
     }
     const norm: ActionDefinition<Ctx, Data> =

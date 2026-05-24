@@ -1,11 +1,11 @@
-import type { Parabola } from "@parabolajs/parabola";
+import type { Station } from "@orbital-js/station";
 import type { AppCtx } from "../index";
 import { sql } from "../db";
 
 type Note = { id: number; body: string; created_at: Date };
 
-export function registerNotes(parabola: Parabola<AppCtx>) {
-  parabola.template("notes", () => {
+export function registerNotes(station: Station<AppCtx>) {
+  station.template("notes", () => {
     return (
       <div class="py-12 space-y-6">
         <h1 class="text-2xl font-bold">Notes (Postgres-backed)</h1>
@@ -31,7 +31,7 @@ export function registerNotes(parabola: Parabola<AppCtx>) {
     );
   });
 
-  parabola.template("notes:list", async () => {
+  station.template("notes:list", async () => {
     const rows = await sql<Note[]>`
       SELECT id, body, created_at FROM notes ORDER BY id DESC LIMIT 50
     `;
@@ -53,14 +53,14 @@ export function registerNotes(parabola: Parabola<AppCtx>) {
     );
   });
 
-  parabola.action("notes:add", async ({ broadcast, data }) => {
+  station.action("notes:add", async ({ broadcast, data }) => {
     const body = String(data?.body ?? "").trim();
     if (!body) return;
     await sql`INSERT INTO notes (body) VALUES (${body})`;
     broadcast("notes:list");
   });
 
-  parabola.action("notes:delete", async ({ broadcast, data }) => {
+  station.action("notes:delete", async ({ broadcast, data }) => {
     const id = Number(data?.id);
     if (!Number.isFinite(id)) return;
     await sql`DELETE FROM notes WHERE id = ${id}`;

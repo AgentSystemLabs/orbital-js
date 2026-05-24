@@ -1,8 +1,8 @@
-import type { Parabola } from "@parabolajs/parabola";
+import type { Station } from "@orbital-js/station";
 import type { AppCtx } from "../index";
 
-export function registerCounter(parabola: Parabola<AppCtx>) {
-  parabola.template("counter", ({ ctx }) => {
+export function registerCounter(station: Station<AppCtx>) {
+  station.template("counter", ({ ctx }) => {
     return (
       <div class="flex flex-col items-center py-12">
         <div class="text-center">{ctx.count}</div>
@@ -19,12 +19,12 @@ export function registerCounter(parabola: Parabola<AppCtx>) {
     );
   });
 
-  parabola.action("increment", ({ ctx, invalidate }) => {
+  station.action("increment", ({ ctx, invalidate }) => {
     ctx.count++;
     invalidate("counter");
   });
 
-  parabola.action("decrement", ({ ctx, invalidate }) => {
+  station.action("decrement", ({ ctx, invalidate }) => {
     ctx.count--;
     invalidate("counter");
   });

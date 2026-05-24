@@ -10,7 +10,11 @@ import type { Logger } from "./log";
 // objects are stringifiable but not declared in the global JSX namespace at
 // the framework's compile site. Runtime coercion enforces correctness.
 export type TemplateResult = string | { toString(): string };
-export type TemplateFn<Ctx> = (ctx: Ctx) => unknown | Promise<unknown>;
+export type RouteParams = Record<string, string>;
+export type TemplateFn<Ctx> = (
+  ctx: Ctx,
+  params: RouteParams
+) => unknown | Promise<unknown>;
 
 export type BroadcastFilter<Ctx> = (ctx: Ctx, ws: WSContext) => boolean;
 
@@ -18,6 +22,7 @@ export type RendererHooks<Ctx> = {
   beforeTemplate?: (ctx: Ctx, key: string) => boolean | Promise<boolean>;
   onError?: (err: unknown, kind: string, ctx?: Ctx) => void;
   onLog?: Logger;
+  getParamsForWs?: (ws: WSContext) => RouteParams;
 };
 
 const FRAME_TYPE_TEMPLATE = "template";
@@ -36,7 +41,7 @@ function coerceTemplateResult(value: unknown, key: string): string {
   const str = String(value);
   if (looksLikeJsxObject(value) && str === "[object Object]") {
     throw new Error(
-      `parabola: template "${key}" returned a plain object that does not stringify to HTML. ` +
+      `station: template "${key}" returned a plain object that does not stringify to HTML. ` +
         `Return a JSX element, a string, or null.`
     );
   }
@@ -65,7 +70,7 @@ export class Renderer<Ctx = unknown> {
   register(key: string, cb: TemplateFn<Ctx>): void {
     if (this.templates.has(key)) {
       throw new Error(
-        `parabola: template "${key}" is already registered. Use a different key, or call unregister(key) first.`
+        `station: template "${key}" is already registered. Use a different key, or call unregister(key) first.`
       );
     }
     this.templates.set(key, cb);
@@ -83,7 +88,11 @@ export class Renderer<Ctx = unknown> {
     return [...this.templates.keys()];
   }
 
-  async renderToString(key: string, ctx: Ctx): Promise<string | null> {
+  async renderToString(
+    key: string,
+    ctx: Ctx,
+    params: RouteParams = {}
+  ): Promise<string | null> {
     const template = this.templates.get(key);
     if (!template) return null;
     if (this.hooks.beforeTemplate) {
@@ -91,7 +100,7 @@ export class Renderer<Ctx = unknown> {
       if (ok === false) return null;
     }
     try {
-      const result = await template(ctx);
+      const result = await template(ctx, params);
       return coerceTemplateResult(result, key);
     } catch (err) {
       this.hooks.onError?.(err, "template", ctx);
@@ -106,8 +115,9 @@ export class Renderer<Ctx = unknown> {
   async renderFor(key: string, ws: WSContext): Promise<void> {
     const ctx = this.ctxStore.get(ws);
     if (ctx === undefined) return;
+    const params = this.hooks.getParamsForWs ? this.hooks.getParamsForWs(ws) : {};
     try {
-      const html = await this.renderToString(key, ctx);
+      const html = await this.renderToString(key, ctx, params);
       if (html === null) return;
       this.dispatcher.send(ws, JSON.stringify({ type: FRAME_TYPE_TEMPLATE, key, html }));
     } catch (err) {
@@ -135,17 +145,18 @@ export class Renderer<Ctx = unknown> {
     const subscribers = this.dispatcher.getSubscribers(key);
     if (!subscribers || subscribers.size === 0) return;
 
-    const targets: Array<[WSContext, Ctx]> = [];
+    const targets: Array<[WSContext, Ctx, RouteParams]> = [];
     for (const ws of subscribers) {
       const ctx = this.ctxStore.get(ws);
       if (ctx === undefined) continue;
       if (filter && !filter(ctx, ws)) continue;
-      targets.push([ws, ctx]);
+      const params = this.hooks.getParamsForWs ? this.hooks.getParamsForWs(ws) : {};
+      targets.push([ws, ctx, params]);
     }
 
     const renders = await Promise.allSettled(
-      targets.map(async ([ws, ctx]) => {
-        const html = await this.renderToString(key, ctx);
+      targets.map(async ([ws, ctx, params]) => {
+        const html = await this.renderToString(key, ctx, params);
         return { ws, html };
       })
     );

@@ -1,10 +1,10 @@
-import type { Parabola } from "@parabolajs/parabola";
+import type { Station } from "@orbital-js/station";
 import type { AppCtx } from "../index";
 
 const articles = [
   {
     id: 1,
-    title: "ParabolaJs: a small reactive framework",
+    title: "OrbitalJs: a small reactive framework",
     body: "Server-rendered templates over WebSockets, no virtual DOM.",
   },
   {
@@ -29,8 +29,8 @@ const articles = [
   },
 ];
 
-export function registerArticles(parabola: Parabola<AppCtx>) {
-  parabola.template("articles", ({ ctx }) => {
+export function registerArticles(station: Station<AppCtx>) {
+  station.template("articles", ({ ctx }) => {
     const filter = (ctx.articleFilter ?? "").toLowerCase();
     const visible = filter
       ? articles.filter((a) => a.title.toLowerCase().includes(filter))
@@ -80,12 +80,12 @@ export function registerArticles(parabola: Parabola<AppCtx>) {
     );
   });
 
-  parabola.action("articles:filter", ({ ctx, invalidate, data }) => {
+  station.action("articles:filter", ({ ctx, invalidate, data }) => {
     ctx.articleFilter = (data?.q ?? "").toString();
     invalidate("articles");
   });
 
-  parabola.action("articles:clear", ({ ctx, invalidate }) => {
+  station.action("articles:clear", ({ ctx, invalidate }) => {
     ctx.articleFilter = "";
     invalidate("articles");
   });

@@ -1,7 +1,7 @@
-export { Parabola } from "./server";
+export { Station } from "./server";
 export type {
-  ParabolaOptions,
-  ParabolaWelcomeFrame,
+  StationOptions,
+  StationWelcomeFrame,
   TemplateHandle,
   ActionHandle,
   RedisLike,
@@ -18,6 +18,11 @@ export type {
   ActionDefinition,
   Validator,
 } from "./bus";
-export type { TemplateFn, BroadcastFilter, TemplateResult } from "./renderer";
+export type {
+  TemplateFn,
+  BroadcastFilter,
+  TemplateResult,
+  RouteParams,
+} from "./renderer";
 export { SubscriptionLimitError, type DispatcherOptions } from "./dispatcher";
 export type { Logger, LogLevel, LogFields, MetricRecorder, MetricFields } from "./log";

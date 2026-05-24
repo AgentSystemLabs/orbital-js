@@ -1,5 +1,5 @@
 {
-  "name": "@parabolajs/example",
+  "name": "@orbital-js/example",
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
@@ -14,7 +14,7 @@
   "license": "MIT",
   "description": "",
   "dependencies": {
-    "@parabolajs/parabola": "workspace:*",
+    "@orbital-js/station": "workspace:*",
     "bad-words": "^3.0.4",
     "daisyui": "^4.12.10",
     "hono": "^4.5.0",

@@ -1,4 +1,4 @@
-import type { Parabola } from "@parabolajs/parabola";
+import type { Station } from "@orbital-js/station";
 import type { AppCtx } from "../index";
 import { redis } from "../redis";
 
@@ -12,8 +12,8 @@ async function recentUsers(): Promise<string[]> {
   return redis.zrange(USERS_KEY, 0, -1);
 }
 
-export function registerViews(parabola: Parabola<AppCtx>) {
-  parabola.template("views", () => {
+export function registerViews(station: Station<AppCtx>) {
+  station.template("views", () => {
     return (
       <>
         <div
@@ -30,7 +30,7 @@ export function registerViews(parabola: Parabola<AppCtx>) {
     );
   });
 
-  parabola.template("users", async () => {
+  station.template("users", async () => {
     const users = await recentUsers();
     return (
       <div class="space-y-4">
@@ -49,12 +49,12 @@ export function registerViews(parabola: Parabola<AppCtx>) {
     );
   });
 
-  parabola.template("views:count", async () => {
+  station.template("views:count", async () => {
     const count = (await redis.get(COUNT_KEY)) ?? "0";
     return <span>{count}</span>;
   });
 
-  parabola.action("views:increment", async ({ broadcast }) => {
+  station.action("views:increment", async ({ broadcast }) => {
     const name = Math.random().toString(36).substring(7);
     await redis
       .multi()

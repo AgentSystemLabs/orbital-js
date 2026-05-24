@@ -1,5 +1,5 @@
 {
-  "name": "@parabolajs/parabola",
+  "name": "@orbital-js/station",
   "version": "0.1.0",
   "description": "Tiny realtime SSR + WebSocket framework for Bun and Hono.",
   "license": "MIT",
@@ -13,8 +13,8 @@
       "import": "./src/index.ts",
       "default": "./src/index.ts"
     },
-    "./parabola.js": {
-      "default": "./src/parabola.js"
+    "./station.js": {
+      "default": "./src/station.js"
     },
     "./package.json": "./package.json"
   },
@@ -25,14 +25,14 @@
     "src/dispatcher.ts",
     "src/renderer.ts",
     "src/log.ts",
-    "src/parabola.js",
+    "src/station.js",
     "src/client-morph.js",
     "tsconfig.json",
     "README.md",
     "CHANGELOG.md"
   ],
   "scripts": {
-    "build": "bun build ./src/index.ts --outdir ./dist --target bun --external hono --external ioredis && cp ./src/parabola.js ./dist/parabola.js && cp ./src/client-morph.js ./dist/client-morph.js",
+    "build": "bun build ./src/index.ts --outdir ./dist --target bun --external hono --external ioredis && cp ./src/station.js ./dist/station.js && cp ./src/client-morph.js ./dist/client-morph.js",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "bun test"
   },

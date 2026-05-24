@@ -1,4 +1,4 @@
-// Parabola client.
+// Station client.
 //
 // Wire protocol (v1):
 //   Client → server frames:
@@ -18,13 +18,13 @@
 //     { type: "protocolError",  error }
 //
 // Connection state events are dispatched on `window` as `CustomEvent`s:
-//     `parabola:state` with detail { state: 'connecting'|'open'|'reconnecting'|'closed' }
-//     `parabola:welcome` with detail { protocolVersion, instanceId, connectionId, reconnected }
-//     `parabola:actionResult` with detail { messageId, ok, error? }
-//     `parabola:actionReply` with detail { key, messageId, payload }
+//     `station:state` with detail { state: 'connecting'|'open'|'reconnecting'|'closed' }
+//     `station:welcome` with detail { protocolVersion, instanceId, connectionId, reconnected }
+//     `station:actionResult` with detail { messageId, ok, error? }
+//     `station:actionReply` with detail { key, messageId, payload }
 //
-// To opt out of auto-connect, set `window.parabolaAutoConnect = false` before this
-// script loads. Then call `window.parabola.connect()` when ready.
+// To opt out of auto-connect, set `window.stationAutoConnect = false` before this
+// script loads. Then call `window.station.connect()` when ready.
 
 (function () {
   const PROTOCOL_VERSION = 1;
@@ -51,14 +51,14 @@
     state = next;
     try {
       window.dispatchEvent(
-        new CustomEvent("parabola:state", { detail: { state: next } })
+        new CustomEvent("station:state", { detail: { state: next } })
       );
     } catch (_) {}
   }
 
   function emitWelcome(detail) {
     try {
-      window.dispatchEvent(new CustomEvent("parabola:welcome", { detail }));
+      window.dispatchEvent(new CustomEvent("station:welcome", { detail }));
     } catch (_) {}
   }
 
@@ -113,6 +113,31 @@
 
   function cssAttrEscape(s) {
     return String(s).replace(/(["\\])/g, "\\$1");
+  }
+
+  // Match a route pattern (which may contain :param segments) against the
+  // current request path. Returns an object of extracted params on match, or
+  // null on miss. Mirrors the server's matchRoutePath so client and server
+  // agree on which routes resolve.
+  function matchRoutePath(routePath, requestPath) {
+    var rp = routePath.split("/").filter(Boolean);
+    var rq = requestPath.split("/").filter(Boolean);
+    if (rp.length !== rq.length) return null;
+    var params = {};
+    for (var i = 0; i < rp.length; i++) {
+      var seg = rp[i];
+      var got = rq[i];
+      if (seg.charAt(0) === ":") {
+        try {
+          params[seg.slice(1)] = decodeURIComponent(got);
+        } catch (e) {
+          params[seg.slice(1)] = got;
+        }
+      } else if (seg !== got) {
+        return null;
+      }
+    }
+    return params;
   }
 
   // -------------------------------------------------------------------------
@@ -421,13 +446,14 @@
         let key = element.getAttribute("p-template");
         const id = element.getAttribute("id");
 
-        const routes = window.parabolaRoutes || [];
+        const routes = window.stationRoutes || [];
         for (const route of routes) {
-          if (route.path === path && id === route.target) {
-            key = route.template;
-            element.setAttribute("p-template", key);
-            history.replaceState({ template: key, target: route.target }, "");
-          }
+          if (id !== route.target) continue;
+          if (matchRoutePath(route.path, path) == null) continue;
+          key = route.template;
+          element.setAttribute("p-template", key);
+          history.replaceState({ template: key, target: route.target }, "");
+          break;
         }
 
         subscribed.add(element);
@@ -446,7 +472,13 @@
 
   function connect(opts) {
     opts = opts || {};
-    const url = opts.url || "/ws";
+    var baseUrl = opts.url || "/ws";
+    // Forward the current page pathname so the server knows which :param
+    // route this socket is viewing. The WS upgrade request's own URL is
+    // always /ws, which can't be matched against app routes.
+    var sep = baseUrl.indexOf("?") >= 0 ? "&" : "?";
+    var url =
+      baseUrl + sep + "path=" + encodeURIComponent(window.location.pathname);
     const backoffOpts = {
       base: opts.backoffBaseMs ?? 250,
       cap: opts.backoffCapMs ?? 30000,
@@ -480,7 +512,7 @@
       if (err) {
         try {
           window.dispatchEvent(
-            new CustomEvent("parabola:protocolError", {
+            new CustomEvent("station:protocolError", {
               detail: { error: "bad json from server" },
             })
           );
@@ -503,7 +535,7 @@
           });
           if (data.protocolVersion !== PROTOCOL_VERSION) {
             console.warn(
-              "parabola: protocol version mismatch — client",
+              "station: protocol version mismatch — client",
               PROTOCOL_VERSION,
               "server",
               data.protocolVersion
@@ -555,7 +587,7 @@
               morph(element, data.html);
               register(element);
             } catch (err) {
-              console.error("parabola: morph failed", err);
+              console.error("station: morph failed", err);
             }
           });
           return;
@@ -578,7 +610,7 @@
           }
           try {
             window.dispatchEvent(
-              new CustomEvent("parabola:actionResult", { detail: data })
+              new CustomEvent("station:actionResult", { detail: data })
             );
           } catch (_) {}
           return;
@@ -587,23 +619,23 @@
         if (data.type === "actionReply") {
           try {
             window.dispatchEvent(
-              new CustomEvent("parabola:actionReply", { detail: data })
+              new CustomEvent("station:actionReply", { detail: data })
             );
           } catch (_) {}
           return;
         }
 
         if (data.type === "protocolError") {
-          console.warn("parabola: server protocol error:", data.error);
+          console.warn("station: server protocol error:", data.error);
           try {
             window.dispatchEvent(
-              new CustomEvent("parabola:protocolError", { detail: data })
+              new CustomEvent("station:protocolError", { detail: data })
             );
           } catch (_) {}
           return;
         }
       } catch (err) {
-        console.error("parabola: failed to handle frame", err, data);
+        console.error("station: failed to handle frame", err, data);
       }
     };
 
@@ -663,7 +695,7 @@
   }
 
   // Public API attached to window.
-  window.parabola = {
+  window.station = {
     connect,
     disconnect,
     send: (frame) => sendFrame(frame),
@@ -690,7 +722,7 @@
   };
 
   // Auto-connect at module load, unless the user opted out.
-  if (window.parabolaAutoConnect !== false) {
+  if (window.stationAutoConnect !== false) {
     connect();
   }
 })();

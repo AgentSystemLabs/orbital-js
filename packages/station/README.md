@@ -1,4 +1,4 @@
-# @parabolajs/parabola
+# @orbital-js/station
 
 Realtime SSR for Bun + Hono. The server renders HTML, a single WebSocket fans
 broadcasts back, and a small client patches the DOM in place. No virtual DOM,
@@ -10,29 +10,30 @@ no client-side router, no JSON contracts — everything is HTML.
 ## Install
 
 ```bash
-bun add @parabolajs/parabola hono
+bun add @orbital-js/station hono
 # optional, for multi-node broadcast
 bun add ioredis
 ```
 
-Parabola requires the Bun runtime (we lean on `Bun.serve` for WebSocket
+Station requires the Bun runtime (we lean on `Bun.serve` for WebSocket
 upgrades and on `HTMLRewriter` for streaming SSR).
 
 ## Quick start
 
-```ts
-import { Parabola } from "@parabolajs/parabola";
+```tsx
+import { Station } from "@orbital-js/station";
 
 type AppCtx = { count: number };
 
-const parabola = new Parabola<AppCtx>({
+const station = new Station<AppCtx>({
   port: 3000,
-  routes: [{ path: "/", target: "content", template: "welcome" }],
 });
 
-parabola.onConnect(() => ({ count: 0 }));
+station.onConnect(() => ({ count: 0 }));
 
-parabola.template("welcome", ({ ctx }) => (
+station.template("main", () => <main id="content" p-template="welcome" />);
+
+station.template("welcome", ({ ctx }) => (
   <div>
     <h1>{ctx.count}</h1>
     <form p-action="inc">
@@ -41,12 +42,12 @@ parabola.template("welcome", ({ ctx }) => (
   </div>
 ));
 
-parabola.action("inc", ({ ctx, invalidate }) => {
+station.action("inc", ({ ctx, invalidate }) => {
   ctx.count++;
   invalidate("welcome");
 });
 
-await parabola.listen();
+await station.listen();
 ```
 
 ## Concepts
@@ -63,17 +64,17 @@ await parabola.listen();
 
 ## Construction & lifecycle
 
-`new Parabola(opts)` is pure construction — it does not bind a port. Call one
+`new Station(opts)` is pure construction — it does not bind a port. Call one
 of:
 
-- `await parabola.listen(port?)` — starts a Bun server on `port` (or
+- `await station.listen(port?)` — starts a Bun server on `port` (or
   `opts.port`, or `process.env.PORT`).
-- `parabola.fetch` / `parabola.websocket` — wire into an existing
+- `station.fetch` / `station.websocket` — wire into an existing
   `Bun.serve({ fetch, websocket })`.
-- `parabola.getApp()` — get the underlying Hono app to mount onto another
-  router. e.g. `outer.route("/realtime", parabola.getApp())`.
+- `station.getApp()` — get the underlying Hono app to mount onto another
+  router. e.g. `outer.route("/realtime", station.getApp())`.
 
-`await parabola.shutdown()` closes all WebSocket clients, stops the Bun
+`await station.shutdown()` closes all WebSocket clients, stops the Bun
 server, and quits Redis connections.
 
 ### Lifecycle hooks
@@ -82,7 +83,7 @@ All hooks are registered before `listen()` / first request and may be called
 multiple times where noted.
 
 ```ts
-parabola
+station
   .beforeUpgrade((req) => {
     // return false (or a Response) to reject the WS handshake.
     return req.headers.get("origin") === "https://my.app";
@@ -119,7 +120,7 @@ parabola
 ## Templates
 
 ```ts
-const welcome = parabola.template("welcome", ({ ctx }) => (
+const welcome = station.template("welcome", ({ ctx }) => (
   <div>hello {ctx.user?.name ?? "stranger"}</div>
 ));
 
@@ -149,7 +150,7 @@ critical surfaces:
 ## Actions
 
 ```ts
-parabola.action("vote", ({ data, broadcast }) => {
+station.action("vote", ({ data, broadcast }) => {
   // data is unknown — validate it yourself, or use defineAction.
   recordVote(String(data?.optionId));
   broadcast("poll");
@@ -158,7 +159,7 @@ parabola.action("vote", ({ data, broadcast }) => {
 // Or with input validation:
 import { z } from "zod";
 
-parabola.defineAction("notes:add", {
+station.defineAction("notes:add", {
   input: z.object({ body: z.string().min(1).max(500) }),
   handler: async ({ data, broadcast }) => {
     await db.insert(notes).values({ body: data.body });
@@ -172,7 +173,7 @@ parabola.defineAction("notes:add", {
 Actions can talk back to the originating socket:
 
 ```ts
-parabola.action("login", async ({ data, reply, ctx }) => {
+station.action("login", async ({ data, reply, ctx }) => {
   const user = await login(data);
   if (!user) return reply({ error: "bad credentials" });
   ctx.user = user;
@@ -180,7 +181,7 @@ parabola.action("login", async ({ data, reply, ctx }) => {
 });
 ```
 
-The client emits a `parabola:actionReply` event with `{ key, messageId, payload }`.
+The client emits a `station:actionReply` event with `{ key, messageId, payload }`.
 The framework also emits an `actionResult` frame for every action carrying a
 `messageId`, which the client uses to release the originating submit button.
 
@@ -194,7 +195,7 @@ The framework also emits an `actionResult` frame for every action carrying a
   `grid`).
 
 ```ts
-parabola.broadcast("chat", (ctx, _ws) => ctx.room === "general");
+station.broadcast("chat", (ctx, _ws) => ctx.room === "general");
 ```
 
 The optional second argument is a filter — only sockets whose ctx passes the
@@ -223,13 +224,13 @@ queues outbound frames while disconnected, and replays them on open. It
 dispatches state events on `window`:
 
 ```ts
-window.addEventListener("parabola:state", (e) => {
+window.addEventListener("station:state", (e) => {
   // e.detail.state ∈ "connecting"|"open"|"reconnecting"|"closed"
   showBanner(e.detail.state);
 });
 
 // Detect a node switch (sticky-session loss):
-window.parabola.onReconnect(({ instanceId, connectionId }) => {
+window.station.onReconnect(({ instanceId, connectionId }) => {
   // ctx is gone on the new node — refetch local UI state here.
 });
 ```
@@ -237,11 +238,11 @@ window.parabola.onReconnect(({ instanceId, connectionId }) => {
 To defer connection (e.g. wait for a session):
 
 ```html
-<script>window.parabolaAutoConnect = false;</script>
-<script src="/static/parabola.js"></script>
+<script>window.stationAutoConnect = false;</script>
+<script src="/static/station.js"></script>
 <script>
   await getSession();
-  window.parabola.connect({ backoffBaseMs: 500 });
+  window.station.connect({ backoffBaseMs: 500 });
 </script>
 ```
 
@@ -267,7 +268,7 @@ socket.
 ## Observability
 
 ```ts
-new Parabola({
+new Station({
   logger: (level, event, fields) => myLogger[level]({ event, ...fields }),
   metric: (name, value, tags) => statsd.gauge(name, value, tags),
 });
@@ -280,15 +281,15 @@ log fields.
 
 ## Embedding
 
-Mount Parabola under your own Hono app:
+Mount Station under your own Hono app:
 
 ```ts
 import { Hono } from "hono";
 const outer = new Hono();
 outer.get("/health", (c) => c.text("ok"));
-outer.route("/", parabola.getApp());
+outer.route("/", station.getApp());
 
-Bun.serve({ fetch: outer.fetch, websocket: parabola.websocket });
+Bun.serve({ fetch: outer.fetch, websocket: station.websocket });
 ```
 
 ## License

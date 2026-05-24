@@ -13,7 +13,12 @@ import {
   type Validator,
 } from "./bus";
 import { Dispatcher, SubscriptionLimitError } from "./dispatcher";
-import { Renderer, type TemplateFn, type BroadcastFilter } from "./renderer";
+import {
+  Renderer,
+  type TemplateFn,
+  type BroadcastFilter,
+  type RouteParams,
+} from "./renderer";
 import {
   defaultLogger,
   noopMetric,
@@ -21,10 +26,49 @@ import {
   type MetricRecorder,
 } from "./log";
 
-const BROADCAST_CHANNEL = "parabola:broadcast";
+const BROADCAST_CHANNEL = "station:broadcast";
 const PROTOCOL_VERSION = 1;
 
 type Route = { path: string; target: string; template: string };
+
+/**
+ * Per-socket state needs an identity that survives across event handlers.
+ * The hono bun adapter rebuilds a fresh `WSContext` for every open/message/
+ * close event; only the underlying adapter socket (exposed at `.raw`) is the
+ * same object across events. Fall back to the WSContext itself for adapters
+ * that don't set `.raw` (e.g. tests / non-bun runtimes).
+ */
+function wsKey(ws: WSContext): object {
+  return ((ws as { raw?: object }).raw as object | undefined) ?? (ws as object);
+}
+
+/**
+ * Match a route pattern (which may contain :param segments) against a concrete
+ * request path. Returns the extracted params on match, or null on miss.
+ *
+ *   matchRoutePath("/projects/:id/logs", "/projects/api/logs") → { id: "api" }
+ *   matchRoutePath("/projects/:id",      "/projects/api/logs") → null
+ */
+function matchRoutePath(routePath: string, requestPath: string): RouteParams | null {
+  const rp = routePath.split("/").filter(Boolean);
+  const rq = requestPath.split("/").filter(Boolean);
+  if (rp.length !== rq.length) return null;
+  const params: RouteParams = {};
+  for (let i = 0; i < rp.length; i++) {
+    const seg = rp[i] as string;
+    const got = rq[i] as string;
+    if (seg.startsWith(":")) {
+      try {
+        params[seg.slice(1)] = decodeURIComponent(got);
+      } catch {
+        params[seg.slice(1)] = got;
+      }
+    } else if (seg !== got) {
+      return null;
+    }
+  }
+  return params;
+}
 
 export type RedisLike = {
   publish(channel: string, message: string): Promise<number> | number;
@@ -34,7 +78,7 @@ export type RedisLike = {
   disconnect?(): unknown;
 };
 
-export type ParabolaOptions = {
+export type StationOptions = {
   styles?: string[];
   routes?: Route[];
   port?: number;
@@ -50,7 +94,7 @@ export type ParabolaOptions = {
   metric?: MetricRecorder;
 };
 
-export type ParabolaWelcomeFrame = {
+export type StationWelcomeFrame = {
   type: "welcome";
   protocolVersion: number;
   instanceId: string;
@@ -67,12 +111,12 @@ type IncomingFrame =
       payload: { key: string; data?: unknown; messageId?: number | string };
     };
 
-function Main({ styles, routes, clientScriptUrl }: ParabolaOptions & { clientScriptUrl: string }) {
+function Main({ styles, routes, clientScriptUrl }: StationOptions & { clientScriptUrl: string }) {
   return (
     <html data-theme="night">
       <head>
         <meta charset="UTF-8" />
-        <title>Parabola</title>
+        <title>Station</title>
         {styles?.map((style) => (
           <link rel="stylesheet" href={style} />
         ))}
@@ -84,7 +128,7 @@ function Main({ styles, routes, clientScriptUrl }: ParabolaOptions & { clientScr
 
         <script
           dangerouslySetInnerHTML={{
-            __html: `window.parabolaRoutes = ${JSON.stringify(routes ?? [])};`,
+            __html: `window.stationRoutes = ${JSON.stringify(routes ?? [])};`,
           }}
         />
 
@@ -132,20 +176,25 @@ export type ActionHandle = {
   key: string;
 };
 
-export class Parabola<Ctx = Record<string, unknown>> {
+export class Station<Ctx = Record<string, unknown>> {
   private dispatcher: Dispatcher;
   private renderer: Renderer<Ctx>;
   private controlBus: ControlBus<Ctx>;
   private app: Hono;
   private ctxStore = new Map<WSContext, Ctx>();
   private connIdStore = new WeakMap<WSContext, string>();
+  // Keyed by the underlying adapter socket (ws.raw) — see wsKey(). The hono
+  // bun adapter wraps each event in a fresh WSContext, so a WeakMap keyed by
+  // WSContext only works inside a single event handler. The underlying
+  // socket is stable across events.
+  private wsPath = new WeakMap<object, string>();
   private connectHooks: Array<ConnectHook<Ctx>> = [];
   private disconnectHooks: Array<DisconnectHook<Ctx>> = [];
   private beforeUpgradeHook?: BeforeUpgradeHook;
   private beforeActionHook?: BeforeActionHook<Ctx>;
   private beforeTemplateHook?: BeforeTemplateHook<Ctx>;
   private errorHook?: ErrorHook<Ctx>;
-  private opts: ParabolaOptions;
+  private opts: StationOptions;
   private instanceId = randomUUID();
   private publisher?: RedisLike;
   private subscriber?: RedisLike;
@@ -159,9 +208,9 @@ export class Parabola<Ctx = Record<string, unknown>> {
   private bunWebsocket: ReturnType<typeof createBunWebSocket>["websocket"];
   private logger: Logger;
   private metric: MetricRecorder;
-  private clientScriptUrl = "/static/parabola.js";
+  private clientScriptUrl = "/static/station.js";
 
-  constructor(opts?: ParabolaOptions) {
+  constructor(opts?: StationOptions) {
     this.opts = opts ?? {};
     this.logger = this.opts.logger ?? defaultLogger;
     this.metric = this.opts.metric ?? noopMetric;
@@ -179,6 +228,7 @@ export class Parabola<Ctx = Record<string, unknown>> {
           this.beforeTemplateHook ? this.beforeTemplateHook(ctx, key) : true,
         onError: (err, kind, ctx) => this.emitError(err, kind, ctx),
         onLog: this.logger,
+        getParamsForWs: (ws) => this.paramsForWs(ws),
       }
     );
 
@@ -213,8 +263,8 @@ export class Parabola<Ctx = Record<string, unknown>> {
   }
 
   /**
-   * Hono fetch handler. Convenient for mounting Parabola under another runtime
-   * (e.g. another Hono app via `app.route('/', parabola.fetch)`).
+   * Hono fetch handler. Convenient for mounting Station under another runtime
+   * (e.g. another Hono app via `app.route('/', station.fetch)`).
    */
   get fetch() {
     this.prepare();
@@ -261,7 +311,7 @@ export class Parabola<Ctx = Record<string, unknown>> {
   beforeUpgrade(cb: BeforeUpgradeHook): this {
     if (this.prepared) {
       throw new Error(
-        "parabola: beforeUpgrade must be registered before getApp()/listen()/fetch is accessed."
+        "station: beforeUpgrade must be registered before getApp()/listen()/fetch is accessed."
       );
     }
     this.beforeUpgradeHook = cb;
@@ -299,17 +349,17 @@ export class Parabola<Ctx = Record<string, unknown>> {
 
   template(
     key: string,
-    cb: (args: { ctx: Ctx }) => unknown | Promise<unknown>
+    cb: (args: { ctx: Ctx; params: RouteParams }) => unknown | Promise<unknown>
   ): TemplateHandle<Ctx> {
-    return this.defineTemplate(key, ({ ctx }) => cb({ ctx }) as any);
+    return this.defineTemplate(key, ({ ctx, params }) => cb({ ctx, params }) as any);
   }
 
   defineTemplate<R = unknown>(
     key: string,
-    cb: (args: { ctx: Ctx }) => R | Promise<R>
+    cb: (args: { ctx: Ctx; params: RouteParams }) => R | Promise<R>
   ): TemplateHandle<Ctx> {
-    const fn: TemplateFn<Ctx> = async (ctx) => {
-      const result = await cb({ ctx });
+    const fn: TemplateFn<Ctx> = async (ctx, params) => {
+      const result = await cb({ ctx, params });
       return result as any;
     };
     this.renderer.register(key, fn);
@@ -359,7 +409,7 @@ export class Parabola<Ctx = Record<string, unknown>> {
 
   private loadClientScriptSync() {
     if (this.clientScriptBody) return;
-    const filePath = path.join(__dirname, "./parabola.js");
+    const filePath = path.join(__dirname, "./station.js");
     const body = fs.readFileSync(filePath, { encoding: "utf-8" });
     const hash = createHash("sha1").update(body).digest("hex").slice(0, 10);
     this.clientScriptBody = body;
@@ -445,6 +495,32 @@ export class Parabola<Ctx = Record<string, unknown>> {
   }
 
   private buildWsHandlers(req: Request) {
+    // The WS upgrade URL is always /ws, so its pathname can't be matched
+    // against app routes. Prefer the `path` query param the client appends to
+    // the WS URL; fall back to the Referer header (browsers send the page
+    // URL); only then to the upgrade pathname itself.
+    let initialPath = "/";
+    try {
+      const u = new URL(req.url);
+      const fromQuery = u.searchParams.get("path");
+      if (fromQuery) {
+        initialPath = fromQuery;
+      } else {
+        const referer = req.headers.get("referer");
+        if (referer) {
+          try {
+            initialPath = new URL(referer).pathname || "/";
+          } catch {
+            initialPath = u.pathname || "/";
+          }
+        } else {
+          initialPath = u.pathname || "/";
+        }
+      }
+    } catch {
+      // fall through with default
+    }
+
     const buildCtx = async (): Promise<Ctx> => {
       let ctx: Partial<Ctx> = {};
       for (const hook of this.connectHooks) {
@@ -472,9 +548,10 @@ export class Parabola<Ctx = Record<string, unknown>> {
       onOpen: async (_event: unknown, ws: WSContext) => {
         await ensureCtx(ws);
         this.liveSockets.add(ws);
+        this.wsPath.set(wsKey(ws), initialPath);
         const connId = randomUUID();
         this.connIdStore.set(ws, connId);
-        this.metric("parabola.ws.open", 1);
+        this.metric("station.ws.open", 1);
         try {
           ws.send(
             JSON.stringify({
@@ -482,7 +559,7 @@ export class Parabola<Ctx = Record<string, unknown>> {
               protocolVersion: PROTOCOL_VERSION,
               instanceId: this.instanceId,
               connectionId: connId,
-            } satisfies ParabolaWelcomeFrame)
+            } satisfies StationWelcomeFrame)
           );
         } catch {
           // socket closed before welcome could send
@@ -563,7 +640,8 @@ export class Parabola<Ctx = Record<string, unknown>> {
         this.dispatcher.unsubscribeAll(ws);
         this.liveSockets.delete(ws);
         this.ctxStore.delete(ws);
-        this.metric("parabola.ws.close", 1);
+        this.wsPath.delete(wsKey(ws));
+        this.metric("station.ws.close", 1);
         if (ctx !== undefined) {
           for (const hook of this.disconnectHooks) {
             Promise.resolve(hook(ctx)).catch((err) =>
@@ -636,6 +714,7 @@ export class Parabola<Ctx = Record<string, unknown>> {
 
   private async inlineTemplates(html: string, ctx: Ctx, requestPath: string): Promise<string> {
     const routes = this.opts.routes ?? [];
+    const pathParams = this.matchAnyRouteParams(requestPath);
     const MAX_PASSES = 16;
     let current = html;
     for (let pass = 0; pass < MAX_PASSES; pass++) {
@@ -649,7 +728,9 @@ export class Parabola<Ctx = Record<string, unknown>> {
             const id = el.getAttribute("id");
             if (id) {
               for (const r of routes) {
-                if (r.path === requestPath && id === r.target) {
+                if (r.target !== id) continue;
+                const params = matchRoutePath(r.path, requestPath);
+                if (params) {
                   key = r.template;
                   el.setAttribute("p-template", key);
                   break;
@@ -657,7 +738,7 @@ export class Parabola<Ctx = Record<string, unknown>> {
               }
             }
             try {
-              const rendered = await this.renderer.renderToString(key, ctx);
+              const rendered = await this.renderer.renderToString(key, ctx, pathParams);
               if (rendered === null) return;
               el.setInnerContent(rendered, { html: true });
               el.setAttribute("data-p-hydrated", "true");
@@ -679,7 +760,7 @@ export class Parabola<Ctx = Record<string, unknown>> {
       current = next;
       if (pass === MAX_PASSES - 1) {
         const cycleErr = new Error(
-          `parabola: inlineTemplates exceeded ${MAX_PASSES} passes (template cycle?) on ${requestPath}. Aborting to avoid partial HTML.`
+          `station: inlineTemplates exceeded ${MAX_PASSES} passes (template cycle?) on ${requestPath}. Aborting to avoid partial HTML.`
         );
         this.emitError(cycleErr, "ssrTemplate", ctx);
         throw cycleErr;
@@ -700,6 +781,10 @@ export class Parabola<Ctx = Record<string, unknown>> {
 
     const ctx = this.ctxStore.get(ws);
     if (ctx === undefined) return;
+
+    // Update the current path BEFORE rendering so any subsequent broadcast
+    // also resolves params from the new URL.
+    this.wsPath.set(wsKey(ws), navPath);
 
     const resolved = await this.renderRoute(navPath, target, swap, ctx);
     if (!resolved.template) return;
@@ -729,20 +814,43 @@ export class Parabola<Ctx = Record<string, unknown>> {
     const routes = this.opts.routes ?? [];
     let key: string | null = swap;
     for (const r of routes) {
-      if (r.path === routePath && r.target === target) {
+      if (r.target !== target) continue;
+      const params = matchRoutePath(r.path, routePath);
+      if (params) {
         key = r.template;
         break;
       }
     }
     if (!key) return { html: "", template: "" };
 
-    const top = await this.renderer.renderToString(key, ctx);
+    const params = this.matchAnyRouteParams(routePath);
+    const top = await this.renderer.renderToString(key, ctx, params);
     if (top === null) return { html: "", template: "" };
 
     const inner = await this.inlineTemplates(top, ctx, routePath);
     const escapedKey = key.replace(/"/g, "&quot;");
     const html = `<div p-template="${escapedKey}" data-p-hydrated="true">${inner}</div>`;
     return { html, template: key };
+  }
+
+  /**
+   * Find the first route whose pattern matches the given path and return its
+   * extracted params. Used to populate the params available to every template
+   * render for the current URL.
+   */
+  private matchAnyRouteParams(requestPath: string): RouteParams {
+    const routes = this.opts.routes ?? [];
+    for (const r of routes) {
+      const params = matchRoutePath(r.path, requestPath);
+      if (params) return params;
+    }
+    return {};
+  }
+
+  private paramsForWs(ws: WSContext): RouteParams {
+    const path = this.wsPath.get(wsKey(ws));
+    if (!path) return {};
+    return this.matchAnyRouteParams(path);
   }
 
   private publishBroadcast(key: string) {
@@ -793,7 +901,7 @@ export class Parabola<Ctx = Record<string, unknown>> {
 
     if (typeof (globalThis as any).Bun === "undefined" || !(globalThis as any).Bun?.serve) {
       throw new Error(
-        "parabola: listen() requires the Bun runtime. For other runtimes, mount `parabola.fetch` onto your own server."
+        "station: listen() requires the Bun runtime. For other runtimes, mount `station.fetch` onto your own server."
       );
     }
 
@@ -804,6 +912,7 @@ export class Parabola<Ctx = Record<string, unknown>> {
     });
 
     this.logger("info", "listening", {
+      url: `http://localhost:${resolvedPort}`,
       port: resolvedPort,
       instanceId: this.instanceId.slice(0, 8),
     });

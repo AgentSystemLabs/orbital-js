@@ -11,10 +11,10 @@ RUN apt-get update -qq && \
     apt-get install --no-install-recommends -y build-essential pkg-config python-is-python3
 
 RUN mkdir -p packages/example && \
-    mkdir -p packages/parabola
+    mkdir -p packages/station
 COPY --link bun.lockb package.json ./
 COPY --link ./packages/example/package.json ./packages/example
-COPY --link ./packages/parabola/package.json ./packages/parabola
+COPY --link ./packages/station/package.json ./packages/station
 RUN bun install --ci
 
 COPY --link . .

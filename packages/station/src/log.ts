@@ -14,7 +14,7 @@ export type MetricRecorder = (
 
 export const defaultLogger: Logger = (level, event, fields) => {
   const payload = fields && Object.keys(fields).length ? fields : undefined;
-  const tag = `parabola:${event}`;
+  const tag = `station:${event}`;
   if (level === "error") {
     if (payload) console.error(tag, payload);
     else console.error(tag);
@@ -30,8 +30,8 @@ export const defaultLogger: Logger = (level, event, fields) => {
     else console.log(tag);
     return;
   }
-  // debug — only when PARABOLA_DEBUG is set.
-  if (process.env.PARABOLA_DEBUG) {
+  // debug — only when STATION_DEBUG is set.
+  if (process.env.STATION_DEBUG) {
     if (payload) console.log(tag, payload);
     else console.log(tag);
   }

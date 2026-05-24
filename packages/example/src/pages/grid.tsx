@@ -1,4 +1,4 @@
-import type { Parabola } from "@parabolajs/parabola";
+import type { Station } from "@orbital-js/station";
 import type { AppCtx } from "../index";
 import { redis } from "../redis";
 
@@ -7,8 +7,8 @@ const KEY = "grid:cells";
 
 const cellField = (row: number, col: number) => `${row}:${col}`;
 
-export function registerGrid(parabola: Parabola<AppCtx>) {
-  parabola.template("grid", () => {
+export function registerGrid(station: Station<AppCtx>) {
+  station.template("grid", () => {
     return (
       <div class="items-center py-12">
         <h1 class="text-xl mb-4">Toggle anything on this realtime grid!</h1>
@@ -24,7 +24,7 @@ export function registerGrid(parabola: Parabola<AppCtx>) {
     const row = rowIndex;
     const fields = Array.from({ length: GRID_SIZE }, (_, col) => cellField(row, col));
 
-    parabola.template(`row:${row}`, async () => {
+    station.template(`row:${row}`, async () => {
       const values = await redis.hmget(KEY, ...fields);
       return (
         <div class="flex gap-2">
@@ -38,7 +38,7 @@ export function registerGrid(parabola: Parabola<AppCtx>) {
       );
     });
 
-    parabola.action(`toggle:${row}`, async ({ broadcast, data }) => {
+    station.action(`toggle:${row}`, async ({ broadcast, data }) => {
       const col = Number(data?.col);
       if (!Number.isInteger(col) || col < 0 || col >= GRID_SIZE) return;
       const field = cellField(row, col);

@@ -9,8 +9,8 @@ export class SubscriptionLimitError extends Error {
   constructor(public scope: "ws" | "process", public limit: number) {
     super(
       scope === "ws"
-        ? `parabola: subscription cap reached for connection (${limit})`
-        : `parabola: subscription cap reached for process (${limit})`
+        ? `station: subscription cap reached for connection (${limit})`
+        : `station: subscription cap reached for process (${limit})`
     );
   }
 }

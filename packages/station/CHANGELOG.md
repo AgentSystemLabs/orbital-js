@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to `@parabolajs/parabola` are documented here. Format
+All notable changes to `@orbital-js/station` are documented here. Format
 follows [Keep a Changelog](https://keepachangelog.com/) and the project adheres
 to [Semantic Versioning](https://semver.org/).
 
@@ -12,12 +12,12 @@ below should be considered stable starting from this version.
 ### Added
 
 - Constructor / lifecycle
-  - `new Parabola(opts)` no longer starts the server. Call `parabola.listen()`
-    to bind a Bun socket, or mount `parabola.fetch` onto an external Hono /
+  - `new Station(opts)` no longer starts the server. Call `station.listen()`
+    to bind a Bun socket, or mount `station.fetch` onto an external Hono /
     runtime.
-  - `parabola.shutdown()` closes WebSocket clients, stops the Bun server, and
+  - `station.shutdown()` closes WebSocket clients, stops the Bun server, and
     quits Redis connections cleanly.
-  - `parabola.getApp()` and `parabola.fetch` lazily prepare routes — call after
+  - `station.getApp()` and `station.fetch` lazily prepare routes — call after
     all lifecycle hooks are wired.
 
 - Lifecycle hooks
@@ -65,23 +65,23 @@ below should be considered stable starting from this version.
   - Action correlation via `messageId`; server replies with `actionResult` and
     optionally `actionReply` for arbitrary payloads.
   - `JSON.parse` is guarded on both ends — bad frames emit
-    `parabola:protocolError` rather than throwing.
+    `station:protocolError` rather than throwing.
 
 - Client reconnect
   - Exponential backoff with ±25% jitter; capped at 30s by default.
   - Outbound queue replays pending sends on reconnect so clicks during a brief
     blip aren't dropped.
-  - `window.parabola.onReconnect(cb)` for app-level resync.
+  - `window.station.onReconnect(cb)` for app-level resync.
   - Connection-state events dispatched on `window`:
-    `parabola:state`, `parabola:welcome`, `parabola:protocolError`,
-    `parabola:actionResult`, `parabola:actionReply`.
-  - `window.parabolaAutoConnect = false` defers auto-connect; call
-    `window.parabola.connect(opts)` when ready.
+    `station:state`, `station:welcome`, `station:protocolError`,
+    `station:actionResult`, `station:actionReply`.
+  - `window.stationAutoConnect = false` defers auto-connect; call
+    `window.station.connect(opts)` when ready.
 
 - Build / packaging
   - Real `exports` map, `types`, `files` allowlist.
   - `bun run build` emits a `dist/` for npm consumers.
-  - Client `parabola.js` is loaded once at boot, hashed for cache busting, and
+  - Client `station.js` is loaded once at boot, hashed for cache busting, and
     served with `Cache-Control: immutable` + `ETag`.
 
 - Observability
@@ -100,7 +100,7 @@ below should be considered stable starting from this version.
 
 ### Changed (breaking)
 
-- `new Parabola()` no longer auto-starts. Call `parabola.listen()` explicitly.
+- `new Station()` no longer auto-starts. Call `station.listen()` explicitly.
 - Re-registering the same template/action key now throws (was a swallowed
   `console.error`). Use a fresh process under `bun --watch`; collisions are
   almost always bugs.

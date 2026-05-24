@@ -1,4 +1,4 @@
-import type { Parabola } from "@parabolajs/parabola";
+import type { Station } from "@orbital-js/station";
 import type { AppCtx } from "../index";
 
 function Header() {
@@ -6,11 +6,11 @@ function Header() {
     <header class="bg-base-300">
       <div className="container mx-auto py-4 flex justify-between">
         <a p-href="/" p-target="content" p-swap="welcome" class="link">
-          ParabolaJs
+          OrbitalJs
         </a>
 
         <a
-          href="https://github.com/webdevcody/parabolajs"
+          href="https://github.com/webdevcody/orbital-js"
           target="_blank"
           class="link"
         >
@@ -32,15 +32,15 @@ function Header() {
 function Footer() {
   return (
     <footer class="bg-base-300">
-      <div className="container mx-auto py-4">ParabolaJs</div>
+      <div className="container mx-auto py-4">OrbitalJs</div>
     </footer>
   );
 }
 
 const formValidationScript = `
 (function () {
-  if (window.__parabolaFormValidationBound) return;
-  window.__parabolaFormValidationBound = true;
+  if (window.__stationFormValidationBound) return;
+  window.__stationFormValidationBound = true;
 
   var validators = {
     required: function (v) {
@@ -125,8 +125,8 @@ const formValidationScript = `
 })();
 `;
 
-export function registerMain(parabola: Parabola<AppCtx>) {
-  parabola.template("main", () => {
+export function registerMain(station: Station<AppCtx>) {
+  station.template("main", () => {
     return (
       <>
         <Header />
@@ -146,10 +146,10 @@ export function registerMain(parabola: Parabola<AppCtx>) {
     );
   });
 
-  parabola.template("welcome", () => {
+  station.template("welcome", () => {
     return (
       <div>
-        <h1 class="text-2xl font-bold">ParabolaJs</h1>
+        <h1 class="text-2xl font-bold">OrbitalJs</h1>
 
         <p>
           Everything is realtime and shared using Paraboljs, load up multiple

@@ -1,12 +1,12 @@
-# ParabolaJs — Framework Production Readiness Checklist
+# OrbitalJs — Framework Production Readiness Checklist
 
-Framework-only review (`packages/parabola/`). Examples and user-app concerns excluded.
+Framework-only review (`packages/station/`). Examples and user-app concerns excluded.
 
 ---
 
 ## 1. Constructor / lifecycle
 
-- [ ] Split construction from server start (`new Parabola()` currently calls `Bun.serve()` synchronously — server.tsx:173).
+- [ ] Split construction from server start (`new Station()` currently calls `Bun.serve()` synchronously — server.tsx:173).
 - [ ] Expose `.start()` / `.listen()` so users can register templates/actions before the server is live without a race.
 - [ ] Allow the framework to be mounted under an external Hono app (return an app/handler instead of self-serving).
 - [ ] Register the `/ws` route only after user hooks are wired, so users can intercept the upgrade.
@@ -62,13 +62,13 @@ Framework-only review (`packages/parabola/`). Examples and user-app concerns exc
 - [ ] Add a client→server `messageId` for action correlation (powers per-submit loading/error states).
 - [ ] Add a server-issued `serverFrameId` so clients can dedupe after reconnect.
 - [ ] Document the full protocol shape in one place.
-- [ ] Guard `JSON.parse(evt.data)` (server.tsx:146) and `JSON.parse(event.data)` (parabola.js:325) — first malformed frame currently throws inside the WS callback.
+- [ ] Guard `JSON.parse(evt.data)` (server.tsx:146) and `JSON.parse(event.data)` (station.js:325) — first malformed frame currently throws inside the WS callback.
 
 ## 9. Client reconnect
 
-- [ ] Exponential backoff with jitter in `ws.onclose` (parabola.js:370) — fixed 1000ms produces thundering herd on regional outage.
+- [ ] Exponential backoff with jitter in `ws.onclose` (station.js:370) — fixed 1000ms produces thundering herd on regional outage.
 - [ ] Configurable max retries / give-up state.
-- [ ] Queue outbound sends while disconnected, replay on reconnect — today `currentWs?.send(...)` silently drops user clicks during reconnect (parabola.js:12, 34, 289).
+- [ ] Queue outbound sends while disconnected, replay on reconnect — today `currentWs?.send(...)` silently drops user clicks during reconnect (station.js:12, 34, 289).
 - [ ] Emit a connection-state event (`connecting` / `open` / `reconnecting` / `closed`) so user code can render a banner.
 - [ ] Add an `onreconnect` hook for application-level resync logic.
 - [ ] Add a backpressure / `readyState` check in `Dispatcher.send` (dispatcher.ts:27) — send-on-closed currently throws into `broadcastLocal`.
@@ -77,9 +77,9 @@ Framework-only review (`packages/parabola/`). Examples and user-app concerns exc
 
 - [ ] Add tests for `morph` — keyed insert, keyed remove, attribute change, focused-input survival, `p-preserve` opt-out, root tag change.
 - [ ] Document the morph contract publicly (what's preserved, what's replaced, what's user-controllable).
-- [ ] Move `window.onpopstate` assignment out of `connect()` so it isn't re-bound on every reconnect (parabola.js:265).
+- [ ] Move `window.onpopstate` assignment out of `connect()` so it isn't re-bound on every reconnect (station.js:265).
 - [ ] Add a top-level client error handler for malformed server frames.
-- [ ] Provide a way to defer initial `connect()` (e.g. lazy connect after the user has a session) — today it fires at module load (parabola.js:381).
+- [ ] Provide a way to defer initial `connect()` (e.g. lazy connect after the user has a session) — today it fires at module load (station.js:381).
 
 ## 11. Type story
 
@@ -90,12 +90,12 @@ Framework-only review (`packages/parabola/`). Examples and user-app concerns exc
 
 ## 12. Build / packaging
 
-- [ ] Add a `build` script for `packages/parabola`.
-- [ ] Add proper `exports` map + `types` entry + `files` allowlist in `packages/parabola/package.json`.
+- [ ] Add a `build` script for `packages/station`.
+- [ ] Add proper `exports` map + `types` entry + `files` allowlist in `packages/station/package.json`.
 - [ ] Fix `main: "src/index"` (no extension) — npm consumers can't resolve this today.
 - [ ] Pick a version + start a changelog.
-- [ ] Load `parabola.js` once at boot and serve from memory, not `fs.readFile` per request (server.tsx:113).
-- [ ] Stamp a hash / version into the `/static/parabola.js` URL for cache busting.
+- [ ] Load `station.js` once at boot and serve from memory, not `fs.readFile` per request (server.tsx:113).
+- [ ] Stamp a hash / version into the `/static/station.js` URL for cache busting.
 
 ## 13. Runtime coupling
 

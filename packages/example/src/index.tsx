@@ -1,4 +1,4 @@
-import { Parabola } from "@parabolajs/parabola";
+import { Station } from "@orbital-js/station";
 import { serveStatic } from "hono/bun";
 import { registerMain } from "./pages/main";
 import { registerPoll } from "./pages/poll";
@@ -16,7 +16,7 @@ export type AppCtx = {
   articleFilter: string;
 };
 
-export const parabola = new Parabola<AppCtx>({
+export const station = new Station<AppCtx>({
   styles: ["/styles.css"],
   port: Number(process.env.PORT ?? 3000),
   redis: { url: REDIS_URL },
@@ -33,25 +33,25 @@ export const parabola = new Parabola<AppCtx>({
   ],
 });
 
-parabola.onConnect(() => ({
+station.onConnect(() => ({
   count: 0,
   articleFilter: "",
 }));
 
-registerMain(parabola);
-registerPoll(parabola);
-registerCounter(parabola);
-registerViews(parabola);
-registerChat(parabola);
-registerGrid(parabola);
-registerArticles(parabola);
-registerNotes(parabola);
-registerForm(parabola);
+registerMain(station);
+registerPoll(station);
+registerCounter(station);
+registerViews(station);
+registerChat(station);
+registerGrid(station);
+registerArticles(station);
+registerNotes(station);
+registerForm(station);
 
 // Mount the styles route after templates/actions are registered so any
 // beforeUpgrade hook gets a chance to wire in first.
-parabola
+station
   .getApp()
   .use("/styles.css", serveStatic({ path: "./dist/styles.css" }));
 
-await parabola.listen();
+await station.listen();

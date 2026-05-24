@@ -1,7 +1,7 @@
 services:
   redis:
     image: redis:7-alpine
-    container_name: parabola-redis
+    container_name: station-redis
     ports:
       - "6379:6379"
     command: ["redis-server", "--save", "", "--appendonly", "no"]
@@ -13,25 +13,25 @@ services:
 
   postgres:
     image: postgres:17-alpine
-    container_name: parabola-postgres
+    container_name: station-postgres
     ports:
       - "5434:5432"
     environment:
-      POSTGRES_USER: parabola
-      POSTGRES_PASSWORD: parabola
-      POSTGRES_DB: parabola
+      POSTGRES_USER: station
+      POSTGRES_PASSWORD: station
+      POSTGRES_DB: station
     volumes:
-      - parabola-pg-data:/var/lib/postgresql/data
+      - station-pg-data:/var/lib/postgresql/data
       - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U parabola -d parabola"]
+      test: ["CMD-SHELL", "pg_isready -U station -d station"]
       interval: 2s
       timeout: 3s
       retries: 20
 
   haproxy:
     image: haproxy:2.9-alpine
-    container_name: parabola-haproxy
+    container_name: station-haproxy
     depends_on:
       - redis
       - postgres
@@ -45,4 +45,4 @@ services:
       - "host.docker.internal:host-gateway"
 
 volumes:
-  parabola-pg-data:
+  station-pg-data:

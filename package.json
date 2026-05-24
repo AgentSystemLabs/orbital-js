@@ -1,5 +1,5 @@
 {
-  "name": "parabolajs",
+  "name": "orbital-js",
   "private": true,
   "workspaces": [
     "packages/*"
@@ -9,8 +9,8 @@
     "dev:up": "docker compose up -d --wait",
     "dev:down": "docker compose down",
     "dev:tailwind": "cd packages/example && bun run tailwind",
-    "dev:node1": "cd packages/example && PORT=3000 REDIS_URL=redis://localhost:6379 DATABASE_URL=postgres://parabola:parabola@localhost:5434/parabola bun --watch src/index.tsx",
-    "dev:node2": "cd packages/example && PORT=3001 REDIS_URL=redis://localhost:6379 DATABASE_URL=postgres://parabola:parabola@localhost:5434/parabola bun --watch src/index.tsx",
+    "dev:node1": "cd packages/example && PORT=3000 REDIS_URL=redis://localhost:6379 DATABASE_URL=postgres://station:station@localhost:5434/station bun --watch src/index.tsx",
+    "dev:node2": "cd packages/example && PORT=3001 REDIS_URL=redis://localhost:6379 DATABASE_URL=postgres://station:station@localhost:5434/station bun --watch src/index.tsx",
     "example": "cd packages/example && bun run start"
   },
   "devDependencies": {

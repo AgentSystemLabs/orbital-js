@@ -1,4 +1,4 @@
-import type { Parabola } from "@parabolajs/parabola";
+import type { Station } from "@orbital-js/station";
 import type { AppCtx } from "../index";
 import Filter from "bad-words";
 import { redis } from "../redis";
@@ -7,8 +7,8 @@ const MAX_MESSAGES = 100;
 const KEY = "chat:messages";
 const filter = new Filter();
 
-export function registerChat(parabola: Parabola<AppCtx>) {
-  parabola.template("chat", () => {
+export function registerChat(station: Station<AppCtx>) {
+  station.template("chat", () => {
     return (
       <div class="items-center py-12">
         <h1 class="text-xl">Send Messages to Everyone!</h1>
@@ -30,7 +30,7 @@ export function registerChat(parabola: Parabola<AppCtx>) {
     );
   });
 
-  parabola.template("messageList", async () => {
+  station.template("messageList", async () => {
     const messages = await redis.lrange(KEY, 0, MAX_MESSAGES - 1);
     return (
       <div class="flex flex-wrap gap-4">
@@ -41,7 +41,7 @@ export function registerChat(parabola: Parabola<AppCtx>) {
     );
   });
 
-  parabola.action("sendMessage", async ({ broadcast, data }) => {
+  station.action("sendMessage", async ({ broadcast, data }) => {
     const raw = String(data?.message ?? "").trim();
     if (!raw) return;
     const message = filter.clean(raw);
