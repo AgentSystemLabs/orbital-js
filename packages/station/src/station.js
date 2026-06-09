@@ -433,7 +433,14 @@
         if (loaded.has(element)) return;
         loaded.add(element);
         const key = element.getAttribute("p-load");
-        sendFrame({ type: "action", payload: { key, data: null } });
+        // Forward any data-* attributes as the action payload so a p-load can pass
+        // context the handler needs (e.g. data-node / data-cluster). No data-*
+        // attributes → data:null (unchanged for existing on-mount effects).
+        const data = { ...element.dataset };
+        sendFrame({
+          type: "action",
+          payload: { key, data: Object.keys(data).length ? data : null },
+        });
       });
     }
 

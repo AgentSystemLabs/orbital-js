@@ -82,6 +82,11 @@ export type StationOptions = {
   styles?: string[];
   routes?: Route[];
   port?: number;
+  /**
+   * Network interface to bind. Omit to bind all interfaces (Bun default);
+   * set to "127.0.0.1" to restrict the server to localhost.
+   */
+  hostname?: string;
   redis?: { url: string };
   /**
    * Pre-built redis publisher/subscriber pair. Use when you want to share a
@@ -909,10 +914,11 @@ export class Station<Ctx = Record<string, unknown>> {
       fetch: this.app.fetch,
       websocket: this.bunWebsocket,
       port: resolvedPort,
+      ...(this.opts.hostname ? { hostname: this.opts.hostname } : {}),
     });
 
     this.logger("info", "listening", {
-      url: `http://localhost:${resolvedPort}`,
+      url: `http://${this.opts.hostname ?? "localhost"}:${resolvedPort}`,
       port: resolvedPort,
       instanceId: this.instanceId.slice(0, 8),
     });
